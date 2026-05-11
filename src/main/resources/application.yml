@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: testspot
+  mvc:
+    static-path-pattern: /static/**
+    resources:
+      static-locations: classpath:/static/
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# 로깅 설정
+logging:
+  level:
+    root: INFO
+    com.example.testspot: DEBUG
+
+# API 키 설정 (환경변수로 덮어쓸 수 있음)
+upbit:
+  api:
+    key: ${UPBIT_API_KEY:}
+    secret: ${UPBIT_API_SECRET:}
+
+coingecko:
+  api:
+    key: ${COINGECKO_API_KEY:}

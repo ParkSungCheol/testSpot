@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestSpot - 암호화폐 필터 분석 도구</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/dragdrop.css">
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <!-- 헤더 -->
+            <header class="header">
+                <h1>🚀 TestSpot - 암호화폐 필터 분석 도구</h1>
+                <p>Upbit의 KRW 거래 종목과 CoinGecko 데이터를 결합하여 조건을 만족하는 암호화폐를 찾아보세요!</p>
+            </header>
+
+            <!-- 메인 콘텐츠 -->
+            <div class="content">
+                <!-- 좌측: 업비트 KRW 종목 리스트 -->
+                <div class="left-panel">
+                    <h2>📊 Upbit KRW 종목</h2>
+                    <div class="search-box">
+                        <input 
+                            v-model="upbitSearchQuery" 
+                            type="text" 
+                            placeholder="종목 검색..."
+                            @input="filterUpbitMarkets"
+                        >
+                    </div>
+                    <div class="market-list">
+                        <div 
+                            v-for="market in filteredUpbitMarkets" 
+                            :key="market.market"
+                            :class="['market-item', { 'highlighted': highlightedMarkets.includes(market.market) }]"
+                        >
+                            <div class="market-name">{{ market.koreanName }}</div>
+                            <div class="market-code">{{ market.market }}</div>
+                        </div>
+                    </div>
+                    <div v-if="filteredUpbitMarkets.length === 0" class="no-data">
+                        종목을 불러오는 중... 또는 검색 결과가 없습니다.
+                    </div>
+                </div>
+
+                <!-- 중앙: 필터 설정 영역 -->
+                <div class="center-panel">
+                    <!-- 상단: 필터 카테고리 (드래그 가능) -->
+                    <div class="filter-categories">
+                        <h3>📌 필터 조건 선택</h3>
+                        <div class="categories-container">
+                            <div 
+                                v-for="(name, key) in availableFilters" 
+                                :key="key"
+                                class="filter-tag draggable"
+                                :draggable="true"
+                                @dragstart="startDrag($event, key)"
+                                :title="name"
+                            >
+                                {{ name }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 중앙: 드롭 영역 -->
+                    <div class="filter-builder">
+                        <h3>⚙️ 필터 구성</h3>
+                        <div 
+                            class="drop-zone"
+                            @dragover.prevent
+                            @drop="handleDrop"
+                        >
+                            <div v-if="selectedFilters.length === 0" class="drop-hint">
+                                필터 조건을 여기에 드래그해서 놓으세요
+                            </div>
+                            <div v-for="(filter, index) in selectedFilters" :key="index" class="selected-filter">
+                                <span>{{ availableFilters[filter.filterType] }}</span>
+                                <button @click="editFilter(index)" class="edit-btn">⚙️ 설정</button>
+                                <button @click="removeFilter(index)" class="remove-btn">✕</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 실행 버튼 -->
+                    <div class="action-buttons">
+                        <button @click="executeFilters" class="execute-btn">▶ 필터 실행</button>
+                        <button @click="resetFilters" class="reset-btn">🔄 초기화</button>
+                    </div>
+
+                    <!-- 결과 정보 -->
+                    <div v-if="filterResult" class="result-info">
+                        <h3>✅ 필터링 결과</h3>
+                        <p>{{ filterResult.matchingMarkets.length }}개의 종목이 조건을 만족합니다.</p>
+                    </div>
+                </div>
+
+                <!-- 우측: 상세 정보 -->
+                <div class="right-panel">
+                    <h2>📈 상세 정보</h2>
+                    <div v-if="selectedCryptoInfo" class="crypto-details">
+                        <div class="detail-section">
+                            <h4>기본 정보</h4>
+                            <table>
+                                <tr>
+                                    <td>종목</td>
+                                    <td>{{ selectedCryptoInfo.koreanName }} ({{ selectedCryptoInfo.market }})</td>
+                                </tr>
+                                <tr>
+                                    <td>현재가</td>
+                                    <td>{{ formatNumber(selectedCryptoInfo.tradePrice) }} KRW</td>
+                                </tr>
+                                <tr>
+                                    <td>변화율 (24h)</td>
+                                    <td :class="selectedCryptoInfo.changePercent >= 0 ? 'positive' : 'negative'">
+                                        {{ formatNumber(selectedCryptoInfo.changePercent, 2) }}%
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="detail-section">
+                            <h4>거래 정보</h4>
+                            <table>
+                                <tr>
+                                    <td>거래량 (24h)</td>
+                                    <td>{{ formatNumber(selectedCryptoInfo.accTradeVolume24h) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>거래대금 (24h)</td>
+                                    <td>{{ formatNumber(selectedCryptoInfo.accTradePrice24h) }} KRW</td>
+                                </tr>
+                                <tr>
+                                    <td>52주 최고가</td>
+                                    <td>{{ formatNumber(selectedCryptoInfo.highest52WeekPrice) }} KRW</td>
+                                </tr>
+                                <tr>
+                                    <td>52주 최저가</td>
+                                    <td>{{ formatNumber(selectedCryptoInfo.lowest52WeekPrice) }} KRW</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div v-if="selectedCryptoInfo.marketCap" class="detail-section">
+                            <h4>시장 정보 (CoinGecko)</h4>
+                            <table>
+                                <tr>
+                                    <td>시가총액</td>
+                                    <td>{{ formatNumber(selectedCryptoInfo.marketCap) }} KRW</td>
+                                </tr>
+                                <tr>
+                                    <td>순위</td>
+                                    <td>#{{ selectedCryptoInfo.marketCapRank }}</td>
+                                </tr>
+                                <tr>
+                                    <td>24h 거래량</td>
+                                    <td>{{ formatNumber(selectedCryptoInfo.totalVolume) }} KRW</td>
+                                </tr>
+                                <tr>
+                                    <td>순환 공급량</td>
+                                    <td>{{ formatNumber(selectedCryptoInfo.circulatingSupply) }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div v-else class="no-data">
+                        종목을 선택하면 상세 정보가 표시됩니다.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 필터 설정 모달 -->
+    <div v-if="showFilterModal" class="modal-overlay" @click="closeFilterModal">
+        <div class="modal-content" @click.stop>
+            <h3>필터 설정: {{ availableFilters[filterModalData.filterType] }}</h3>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>연산자</label>
+                    <select v-model="filterModalData.operator">
+                        <option value="GREATER_THAN">초과 (&gt;)</option>
+                        <option value="GREATER_THAN_OR_EQUAL">이상 (≥)</option>
+                        <option value="LESS_THAN">미만 (&lt;)</option>
+                        <option value="LESS_THAN_OR_EQUAL">이하 (≤)</option>
+                        <option value="EQUALS">같음 (=)</option>
+                        <option value="NOT_EQUALS">다름 (≠)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>값</label>
+                    <input v-model.number="filterModalData.value" type="number" placeholder="값을 입력하세요">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @click="closeFilterModal" class="btn-cancel">취소</button>
+                <button @click="saveFilterModal" class="btn-confirm">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

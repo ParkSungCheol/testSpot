@@ -1,0 +1,9 @@
+.filter-tag.dragging {
+    opacity: 0.6;
+    transform: scale(0.95);
+}
+
+.drop-zone.drag-over {
+    border-color: #6366f1;
+    background-color: rgba(99, 102, 241, 0.1);
+}
